@@ -23,11 +23,25 @@ jobs:
           curl -L -o imgui\imgui_internal.h https://raw.githubusercontent.com/ocornut/imgui/master/imgui_internal.h
           curl -L -o imgui\imstb_rectpack.h https://raw.githubusercontent.com/ocornut/imgui/master/imstb_rectpack.h
           curl -L -o imgui\imstb_textedit.h https://raw.githubusercontent.com/ocornut/imgui/master/imstb_textedit.h
+          curl -L -o imgui\imstb_truetype.h https://raw.githubusercontent.com/ocornut/imgui/master/imstb_truetype.h
           curl -L -o imgui\imgui_impl_win32.h https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_win32.h
           curl -L -o imgui\imgui_impl_win32.cpp https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_win32.cpp
           curl -L -o imgui\imgui_impl_dx11.h https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_dx11.h
           curl -L -o imgui\imgui_impl_dx11.cpp https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_dx11.cpp
           echo #pragma once > imgui\imconfig.h
+
+      - name: Debug - List files in repo
+        shell: pwsh
+        run: |
+          Write-Host "=== Root files ==="
+          Get-ChildItem -Path . -File | Select-Object Name
+          Write-Host "=== .github/workflows/ ==="
+          Get-ChildItem -Path .github\workflows -File | Select-Object Name
+
+      - name: Debug - Check if ZekaxxCCheat.cpp exists
+        shell: cmd
+        run: |
+          if exist ZekaxxCCheat.cpp (echo [OK] Found) else (echo [FAIL] NOT FOUND & dir /b *.cpp & exit 1)
 
       - name: Find Visual Studio
         shell: pwsh
