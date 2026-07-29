@@ -1,11 +1,17 @@
-name: Build
-on: [workflow_dispatch]
+name: Build ZekaxxCCheat EXE
+
+on:
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: windows-latest
+    
     steps:
-      - uses: actions/checkout@v4
-      - name: Build
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download ImGui
         shell: cmd
         run: |
           mkdir imgui
@@ -23,10 +29,309 @@ jobs:
           curl -L -o imgui\imgui_impl_dx11.h https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_dx11.h
           curl -L -o imgui\imgui_impl_dx11.cpp https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_dx11.cpp
           echo #pragma once > imgui\imconfig.h
-          for /f "tokens=*" %%i in ('"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath') do set VS=%%i
-          call "%VS%\VC\Auxiliary\Build\vcvars64.bat"
-          cl /EHsc /O2 /MT /GS- /Fe:ZekaxxCCheat.exe ZekaxxCCheat.cpp imgui\*.cpp /I imgui /link /SUBSYSTEM:WINDOWS /MACHINE:X64
-      - uses: actions/upload-artifact@v4
+
+      - name: Generate ZekaxxCCheat.cpp
+        shell: pwsh
+        run: |
+          $source = @'
+#define _CRT_SECURE_NO_WARNINGS
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <tlhelp32.h>
+#include <psapi.h>
+#include <d3d11.h>
+#include <dxgi.h>
+#include <d3dcompiler.h>
+#include <string>
+#include <vector>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <ctime>
+#include <thread>
+#include <mutex>
+#include <algorithm>
+#include <fstream>
+#include <sstream>
+
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "psapi.lib")
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "d3dcompiler.lib")
+
+typedef LONG NTSTATUS;
+typedef struct _CLIENT_ID { PVOID UniqueProcess; PVOID UniqueThread; } CLIENT_ID;
+typedef NTSTATUS (NTAPI *pNtOpenProcess)(PHANDLE, ACCESS_MASK, PVOID, PCLIENT_ID);
+typedef NTSTATUS (NTAPI *pNtReadVirtualMemory)(HANDLE, PVOID, PVOID, SIZE_T, PSIZE_T);
+typedef NTSTATUS (NTAPI *pNtWriteVirtualMemory)(HANDLE, PVOID, PVOID, SIZE_T, PSIZE_T);
+typedef NTSTATUS (NTAPI *pNtClose)(HANDLE);
+typedef NTSTATUS (NTAPI *pNtGetContextThread)(HANDLE, PCONTEXT);
+typedef NTSTATUS (NTAPI *pNtSetContextThread)(HANDLE, PCONTEXT);
+typedef NTSTATUS (NTAPI *pNtResumeThread)(HANDLE, PULONG);
+typedef NTSTATUS (NTAPI *pNtUnmapViewOfSection)(HANDLE, PVOID);
+typedef NTSTATUS (NTAPI *pNtQueryInformationProcess)(HANDLE, ULONG, PVOID, ULONG, PULONG);
+
+static pNtOpenProcess _NtOpenProcess=NULL;
+static pNtReadVirtualMemory _NtReadVirtualMemory=NULL;
+static pNtWriteVirtualMemory _NtWriteVirtualMemory=NULL;
+static pNtClose _NtClose=NULL;
+static pNtGetContextThread _NtGetContextThread=NULL;
+static pNtSetContextThread _NtSetContextThread=NULL;
+static pNtResumeThread _NtResumeThread=NULL;
+static pNtUnmapViewOfSection _NtUnmapViewOfSection=NULL;
+static pNtQueryInformationProcess _NtQueryInformationProcess=NULL;
+
+void InitSyscalls(){
+    HMODULE n=GetModuleHandleW(L"ntdll.dll");
+    _NtOpenProcess=(pNtOpenProcess)GetProcAddress(n,"NtOpenProcess");
+    _NtReadVirtualMemory=(pNtReadVirtualMemory)GetProcAddress(n,"NtReadVirtualMemory");
+    _NtWriteVirtualMemory=(pNtWriteVirtualMemory)GetProcAddress(n,"NtWriteVirtualMemory");
+    _NtClose=(pNtClose)GetProcAddress(n,"NtClose");
+    _NtGetContextThread=(pNtGetContextThread)GetProcAddress(n,"NtGetContextThread");
+    _NtSetContextThread=(pNtSetContextThread)GetProcAddress(n,"NtSetContextThread");
+    _NtResumeThread=(pNtResumeThread)GetProcAddress(n,"NtResumeThread");
+    _NtUnmapViewOfSection=(pNtUnmapViewOfSection)GetProcAddress(n,"NtUnmapViewOfSection");
+    _NtQueryInformationProcess=(pNtQueryInformationProcess)GetProcAddress(n,"NtQueryInformationProcess");
+}
+
+HANDLE OpenProcessNT(DWORD pid){HANDLE h=NULL;CLIENT_ID c={(PVOID)(uintptr_t)pid};_NtOpenProcess(&h,PROCESS_ALL_ACCESS,NULL,&c);return h;}
+template<typename T>bool SafeRead(HANDLE h,uintptr_t a,T&v){SIZE_T r=0;NTSTATUS s=_NtReadVirtualMemory(h,(PVOID)a,&v,sizeof(T),&r);return s>=0&&r==sizeof(T);}
+template<typename T>bool SafeWrite(HANDLE h,uintptr_t a,const T&v){SIZE_T w=0;NTSTATUS s=_NtWriteVirtualMemory(h,(PVOID)a,(PVOID)&v,sizeof(T),&w);return s>=0&&w==sizeof(T);}
+
+struct vec2{float x,y;};
+struct vec3{float x,y,z;};
+struct Matrix4x4{float m[4][4];};
+
+struct CheatConfig{
+    bool aimbot=true,spinbot=false,autohammer=true,fastshoot=true,esp=true;
+    float aimbotFov=360,aimbotSmooth=1,predictionFactor=1800;
+    int spinMode=0;float spinSpeed=10,spinPitch=0,jitterAngle=45;
+    float hammerRange=80;bool hammerAutoSwitch=true;
+    bool espBox=true,espLine=true,espHealth=true,espName=true,espDistance=true;
+    float espBoxColor[4]={1,0.2f,0.2f,1},espTeamColor[4]={0.2f,1,0.2f,1};
+    int espMaxDist=1500;bool radar=false;float radarSize=150;
+    bool bunnyHop=false;int triggerDelay=50;
+};
+static CheatConfig cfg;
+
+struct CachedPlayer{bool valid;vec3 pos,vel;float yaw,pitch;int health,team,weapon;};
+struct CachedGameState{CachedPlayer local;CachedPlayer players[64];int playerCount;Matrix4x4 viewMatrix;uintptr_t inputPtr,localPtr;};
+
+typedef HRESULT(__stdcall*PresentFn)(IDXGISwapChain*,UINT,UINT);
+static PresentFn OrigPresent=nullptr;
+static ID3D11Device*g_pd3dDevice=nullptr;
+static ID3D11DeviceContext*g_pd3dContext=nullptr;
+static ID3D11RenderTargetView*g_pRenderTarget=nullptr;
+static bool g_init=false;
+static HWND g_hwnd=NULL;
+
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx11.h"
+
+HRESULT __stdcall HookedPresent(IDXGISwapChain*s,UINT sync,UINT flags){
+    if(!g_init){
+        if(FAILED(s->GetDevice(__uuidof(ID3D11Device),(void**)&g_pd3dDevice)))return OrigPresent(s,sync,flags);
+        g_pd3dDevice->GetImmediateContext(&g_pd3dContext);
+        DXGI_SWAP_CHAIN_DESC d;s->GetDesc(&d);g_hwnd=d.OutputWindow;
+        ID3D11Texture2D*bb=nullptr;
+        if(FAILED(s->GetBuffer(0,__uuidof(ID3D11Texture2D),(void**)&bb)))return OrigPresent(s,sync,flags);
+        g_pd3dDevice->CreateRenderTargetView(bb,NULL,&g_pRenderTarget);bb->Release();
+        ImGui::CreateContext();ImGui_ImplWin32_Init(g_hwnd);ImGui_ImplDX11_Init(g_pd3dDevice,g_pd3dContext);
+        ImGui::GetIO().ConfigFlags|=ImGuiConfigFlags_NavEnableKeyboard;ImGui::StyleColorsDark();
+        g_init=true;
+    }
+    ImGui_ImplDX11_NewFrame();ImGui_ImplWin32_NewFrame();ImGui::NewFrame();
+    {static bool show=true;if(GetAsyncKeyState(VK_INSERT)&1)show=!show;
+    if(show){
+        ImGui::SetNextWindowSize(ImVec2(400,350),ImGuiCond_FirstUseEver);
+        ImGui::Begin("ZekaxxCCheat v7.5",nullptr,ImGuiWindowFlags_NoResize);
+        ImGui::TextColored(ImVec4(1,0.42f,0.62f,1),"ZekaxxCCheat");
+        if(ImGui::BeginTabBar("T")){
+            if(ImGui::BeginTabItem("Combat")){
+                ImGui::Checkbox("Aimbot",&cfg.aimbot);
+                ImGui::SliderFloat("FOV",&cfg.aimbotFov,1,360,"%.0f");
+                ImGui::SliderFloat("Smooth",&cfg.aimbotSmooth,0.1f,20,"%.1f");
+                ImGui::Checkbox("Spinbot",&cfg.spinbot);
+                ImGui::Checkbox("AutoHammer",&cfg.autohammer);
+                ImGui::Checkbox("FastShoot",&cfg.fastshoot);
+                ImGui::EndTabItem();
+            }
+            if(ImGui::BeginTabItem("Visuals")){
+                ImGui::Checkbox("ESP",&cfg.esp);
+                ImGui::Checkbox("Box",&cfg.espBox);ImGui::SameLine();
+                ImGui::Checkbox("Line",&cfg.espLine);ImGui::SameLine();
+                ImGui::Checkbox("Health",&cfg.espHealth);
+                ImGui::SliderInt("Max Dist",&cfg.espMaxDist,100,3000);
+                ImGui::Checkbox("Radar",&cfg.radar);
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
+        }
+        ImGui::End();
+    }}
+    ImGui::Render();
+    if(g_pRenderTarget){g_pd3dContext->OMSetRenderTargets(1,&g_pRenderTarget,NULL);ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());}
+    return OrigPresent(s,sync,flags);
+}
+
+void InitD3D(){
+    D3D_FEATURE_LEVEL fl=D3D_FEATURE_LEVEL_11_0;
+    DXGI_SWAP_CHAIN_DESC sd={};sd.BufferCount=1;sd.BufferDesc.Format=DXGI_FORMAT_R8G8B8A8_UNORM;
+    sd.BufferUsage=DXGI_USAGE_RENDER_TARGET_OUTPUT;sd.OutputWindow=GetConsoleWindow();
+    sd.SampleDesc.Count=1;sd.Windowed=TRUE;
+    ID3D11Device*d=nullptr;ID3D11DeviceContext*c=nullptr;IDXGISwapChain*sw=nullptr;
+    D3D11CreateDeviceAndSwapChain(0,D3D_DRIVER_TYPE_HARDWARE,0,0,&fl,1,D3D11_SDK_VERSION,&sd,&sw,&d,0,&c);
+    void**vt=*(void***)sw;OrigPresent=(PresentFn)vt[8];
+    DWORD old;VirtualProtect(&vt[8],sizeof(void*),PAGE_READWRITE,&old);
+    vt[8]=(void*)HookedPresent;VirtualProtect(&vt[8],sizeof(void*),old,&old);
+    d->Release();c->Release();sw->Release();
+}
+
+static HANDLE g_hProc=NULL;static uintptr_t g_base=0;static bool g_running=true;
+static CachedGameState g_cache;static std::mutex g_cacheMutex;static std::thread g_worker;
+static uintptr_t offLP=0x4A8B2C,offEL=0x4A3C10,offVM=0x4A1E40,offIn=0x4A7C00;
+
+void CacheWorker(){while(g_running){
+    if(!g_hProc||!g_base){Sleep(500);continue;}
+    CachedGameState tmp={};uintptr_t lp=0;
+    if(!SafeRead(g_hProc,g_base+offLP,lp)||!lp){Sleep(1);continue;}
+    tmp.localPtr=lp;
+    SafeRead(g_hProc,lp+0x2C,tmp.local.pos);SafeRead(g_hProc,lp+0x44,tmp.local.vel);
+    SafeRead(g_hProc,lp+0x58,tmp.local.yaw);SafeRead(g_hProc,lp+0x5C,tmp.local.pitch);
+    SafeRead(g_hProc,lp+0x148,tmp.local.health);SafeRead(g_hProc,lp+0x240,tmp.local.team);
+    tmp.local.valid=true;
+    uintptr_t el=0;if(!SafeRead(g_hProc,g_base+offEL,el)||!el){Sleep(1);continue;}
+    SafeRead(g_hProc,el+4,tmp.playerCount);if(tmp.playerCount>64)tmp.playerCount=64;
+    SafeRead(g_hProc,g_base+offVM,tmp.viewMatrix);SafeRead(g_hProc,g_base+offIn,tmp.inputPtr);
+    uintptr_t eptrs[64]={};SIZE_T b=0;
+    _NtReadVirtualMemory(g_hProc,(PVOID)(el+8),eptrs,tmp.playerCount*sizeof(uintptr_t),&b);
+    for(int i=0;i<tmp.playerCount;i++){
+        if(!eptrs[i]||eptrs[i]==lp)continue;
+        CachedPlayer&p=tmp.players[i];
+        SafeRead(g_hProc,eptrs[i]+0x2C,p.pos);SafeRead(g_hProc,eptrs[i]+0x44,p.vel);
+        SafeRead(g_hProc,eptrs[i]+0x58,p.yaw);SafeRead(g_hProc,eptrs[i]+0x148,p.health);
+        SafeRead(g_hProc,eptrs[i]+0x240,p.team);p.valid=true;
+    }
+    {std::lock_guard<std::mutex> lk(g_cacheMutex);g_cache=tmp;}
+    Sleep(1);
+}}
+
+bool WorldToScreen(const vec3&w,vec2&s,float sw,float sh,const Matrix4x4&vp){
+    float cx=w.x*vp.m[0][0]+w.y*vp.m[0][1]+w.z*vp.m[0][2]+vp.m[0][3];
+    float cy=w.x*vp.m[1][0]+w.y*vp.m[1][1]+w.z*vp.m[1][2]+vp.m[1][3];
+    float cz=w.x*vp.m[2][0]+w.y*vp.m[2][1]+w.z*vp.m[2][2]+vp.m[2][3];
+    float cw=w.x*vp.m[3][0]+w.y*vp.m[3][1]+w.z*vp.m[3][2]+vp.m[3][3];
+    if(cw<0.001f)return false;s.x=(sw/2)*(cx/cw+1);s.y=(sh/2)*(1-cy/cw);return cz>0&&cz<cw;
+}
+
+void RunAimbot(){
+    if(!cfg.aimbot||!g_hProc)return;
+    if(!(GetAsyncKeyState(VK_LBUTTON)&0x8000))return;
+    CachedGameState gs;{std::lock_guard<std::mutex> lk(g_cacheMutex);gs=g_cache;}
+    if(!gs.local.valid)return;
+    vec3 bt;float bf=cfg.aimbotFov;bool fnd=false;
+    for(int i=0;i<gs.playerCount;i++){
+        if(!gs.players[i].valid||gs.players[i].health<=0)continue;
+        if(gs.players[i].team==gs.local.team)continue;
+        vec3 tp=gs.players[i].pos;
+        float dx=tp.x-gs.local.pos.x,dy=tp.y-gs.local.pos.y,dz=tp.z-gs.local.pos.z;
+        float dist=sqrtf(dx*dx+dy*dy+dz*dz);
+        tp.x+=gs.players[i].vel.x*dist/cfg.predictionFactor;
+        tp.y+=gs.players[i].vel.y*dist/cfg.predictionFactor;
+        tp.z+=gs.players[i].vel.z*dist/cfg.predictionFactor;
+        dx=tp.x-gs.local.pos.x;dy=tp.y-gs.local.pos.y;dz=tp.z-gs.local.pos.z;
+        float tY=atan2f(dy,dx)*57.29578f,tP=-atan2f(dz,sqrtf(dx*dx+dy*dy))*57.29578f;
+        float dY=tY-gs.local.yaw;while(dY>180)dY-=360;while(dY<-180)dY+=360;
+        float fov=sqrtf(dY*dY+(tP-gs.local.pitch)*(tP-gs.local.pitch));
+        if(fov<bf){bf=fov;bt=tp;fnd=true;}
+    }
+    if(fnd&&gs.localPtr){
+        float dx=bt.x-gs.local.pos.x,dy=bt.y-gs.local.pos.y,dz=bt.z-gs.local.pos.z;
+        float tY=atan2f(dy,dx)*57.29578f,tP=-atan2f(dz,sqrtf(dx*dx+dy*dy))*57.29578f;
+        float ny=gs.local.yaw+(tY-gs.local.yaw)/cfg.aimbotSmooth;
+        float np=gs.local.pitch+(tP-gs.local.pitch)/cfg.aimbotSmooth;
+        SafeWrite(g_hProc,gs.localPtr+0x58,ny);SafeWrite(g_hProc,gs.localPtr+0x5C,np);
+    }
+}
+
+void RunFastModules(){
+    if(!g_hProc||!g_base)return;
+    uintptr_t lp=0;if(!SafeRead(g_hProc,g_base+offLP,lp)||!lp)return;
+    if(cfg.spinbot){static float sa=0;float yaw=0;SafeRead(g_hProc,lp+0x58,yaw);
+        switch(cfg.spinMode){case 0:sa+=cfg.spinSpeed;if(sa>360)sa-=360;yaw=sa;break;
+        case 1:yaw=(float)(rand()%360-180);break;
+        case 2:{static int f=1;f*=-1;yaw+=f*cfg.jitterAngle;break;}}
+        SafeWrite(g_hProc,lp+0x58,yaw);SafeWrite(g_hProc,lp+0x5C,cfg.spinPitch);}
+    if(cfg.autohammer){if(cfg.hammerAutoSwitch)SafeWrite(g_hProc,lp+0x250,0);int w=0;SafeRead(g_hProc,lp+0x250,w);if(w==0){
+        CachedGameState gs;{std::lock_guard<std::mutex> lk(g_cacheMutex);gs=g_cache;}
+        for(int i=0;i<gs.playerCount;i++){if(!gs.players[i].valid||gs.players[i].health<=0)continue;
+        if(gs.players[i].team==gs.local.team)continue;
+        float dx=gs.players[i].pos.x-gs.local.pos.x,dy=gs.players[i].pos.y-gs.local.pos.y;
+        if(sqrtf(dx*dx+dy*dy)<=cfg.hammerRange){SafeWrite(g_hProc,gs.inputPtr+0x10,true);break;}}}}}
+    if(cfg.fastshoot){int cd=0;SafeWrite(g_hProc,lp+0x400,cd);
+        if(cfg.autoFire){uintptr_t inp=0;if(SafeRead(g_hProc,g_base+offIn,inp)&&inp)SafeWrite(g_hProc,inp+0x10,true);}}
+    if(cfg.bunnyHop&&(GetAsyncKeyState(VK_SPACE)&0x8000)){uintptr_t inp=0;if(SafeRead(g_hProc,g_base+offIn,inp)&&inp)SafeWrite(g_hProc,inp+0x14,true);}
+}
+
+bool RunPE(const wchar_t*target){
+    STARTUPINFOW si={sizeof(si)};PROCESS_INFORMATION pi={};
+    if(!CreateProcessW(target,NULL,NULL,NULL,FALSE,CREATE_SUSPENDED,NULL,NULL,&si,&pi))return false;
+    CONTEXT ctx={CONTEXT_FULL};_NtGetContextThread(pi.hThread,&ctx);
+    PROCESS_BASIC_INFORMATION pbi={};_NtQueryInformationProcess(pi.hProcess,0,&pbi,sizeof(pbi),NULL);
+    PEB peb={};_NtReadVirtualMemory(pi.hProcess,pbi.PebBaseAddress,&peb,sizeof(peb),NULL);
+    uintptr_t ib=*(uintptr_t*)((char*)&peb+0x10);
+    _NtUnmapViewOfSection(pi.hProcess,(PVOID)ib);ctx.Rcx=ib;
+    _NtSetContextThread(pi.hThread,&ctx);_NtResumeThread(pi.hThread,NULL);
+    Sleep(2000);CloseHandle(pi.hThread);CloseHandle(pi.hProcess);return true;
+}
+
+void MainLoop(){while(g_running){
+    if(!g_hProc||!g_base){DWORD pid=0;HANDLE s=CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
+    PROCESSENTRY32W pe={sizeof(pe)};if(Process32FirstW(s,&pe))do{if(!_wcsicmp(pe.szExeFile,L"DDNet.exe")){pid=pe.th32ProcessID;break;}}while(Process32NextW(s,&pe));CloseHandle(s);
+    if(pid){g_hProc=OpenProcessNT(pid);HANDLE ms=CreateToolhelp32Snapshot(TH32CS_SNAPMODULE,pid);
+    MODULEENTRY32W me={sizeof(me)};if(Module32FirstW(ms,&me))do{if(!_wcsicmp(me.szModule,L"DDNet.exe")){g_base=(uintptr_t)me.modBaseAddr;break;}}while(Module32NextW(ms,&me));CloseHandle(ms);}
+    Sleep(1000);continue;}
+    DWORD c;if(!GetExitCodeProcess(g_hProc,&c)||c!=STILL_ACTIVE){_NtClose(g_hProc);g_hProc=NULL;g_base=0;Sleep(2000);continue;}
+    RunAimbot();RunFastModules();Sleep(0);
+}}
+
+int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR,int){
+    BOOL adm=FALSE;PSID g;SID_IDENTIFIER_AUTHORITY nt=SECURITY_NT_AUTHORITY;
+    AllocateAndInitializeSid(&nt,2,SECURITY_BUILTIN_DOMAIN_RID,DOMAIN_ALIAS_RID_ADMINS,0,0,0,0,0,0,&g);
+    CheckTokenMembership(NULL,g,&adm);FreeSid(g);
+    if(!adm){MessageBoxW(NULL,L"Run as Administrator!",L"ZekaxxCCheat",MB_ICONWARNING);return 1;}
+    InitSyscalls();InitD3D();
+    wchar_t dd[MAX_PATH]=L"DDNet.exe";
+    if(GetFileAttributesW(dd)==INVALID_FILE_ATTRIBUTES){ExpandEnvironmentStringsW(L"%LOCALAPPDATA%\\DDNet\\DDNet.exe",dd,MAX_PATH);}
+    RunPE(dd);
+    g_worker=std::thread(CacheWorker);
+    MessageBoxW(NULL,L"INSERT = Menu | END = Exit",L"ZekaxxCCheat v7.5",MB_OK);
+    MainLoop();
+    g_running=false;if(g_worker.joinable())g_worker.join();
+    if(g_hProc)_NtClose(g_hProc);
+    return 0;
+}
+'@
+          Set-Content -Path ZekaxxCCheat.cpp -Value $source
+
+      - name: Find Visual Studio
+        shell: pwsh
+        run: |
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          "VS_PATH=$vsPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Compile x64
+        shell: cmd
+        run: |
+          call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
+          cl /EHsc /O2 /MT /GS- /GL /Fe:ZekaxxCCheat.exe ZekaxxCCheat.cpp imgui\*.cpp /I imgui /link /SUBSYSTEM:WINDOWS /MACHINE:X64 /LTCG
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
         with:
           name: ZekaxxCCheat
           path: ZekaxxCCheat.exe
