@@ -21,6 +21,7 @@ jobs:
           curl -L -o imgui\imgui_draw.cpp https://raw.githubusercontent.com/ocornut/imgui/master/imgui_draw.cpp
           curl -L -o imgui\imgui_widgets.cpp https://raw.githubusercontent.com/ocornut/imgui/master/imgui_widgets.cpp
           curl -L -o imgui\imgui_tables.cpp https://raw.githubusercontent.com/ocornut/imgui/master/imgui_tables.cpp
+          curl -L -o imgui\imgui_internal.h https://raw.githubusercontent.com/ocornut/imgui/master/imgui_internal.h
           curl -L -o imgui\imgui_impl_win32.h https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_win32.h
           curl -L -o imgui\imgui_impl_win32.cpp https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_win32.cpp
           curl -L -o imgui\imgui_impl_dx11.h https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_dx11.h
@@ -37,6 +38,8 @@ jobs:
         shell: cmd
         run: |
           call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
+          dir /b *.cpp
+          dir /b imgui
           cl /EHsc /O2 /MT /GS- /GL /Fe:ZekaxxCCheat_x64.exe ZekaxxCCheat.cpp imgui\*.cpp /I imgui /link user32.lib gdi32.lib shell32.lib psapi.lib d3d11.lib dxgi.lib d3dcompiler.lib /SUBSYSTEM:WINDOWS /MACHINE:X64 /LTCG
 
       - name: Compile x86
