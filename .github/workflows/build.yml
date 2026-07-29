@@ -1,0 +1,32 @@
+name: Build
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        shell: cmd
+        run: |
+          mkdir imgui
+          curl -L -o imgui\imgui.h https://raw.githubusercontent.com/ocornut/imgui/master/imgui.h
+          curl -L -o imgui\imgui.cpp https://raw.githubusercontent.com/ocornut/imgui/master/imgui.cpp
+          curl -L -o imgui\imgui_draw.cpp https://raw.githubusercontent.com/ocornut/imgui/master/imgui_draw.cpp
+          curl -L -o imgui\imgui_widgets.cpp https://raw.githubusercontent.com/ocornut/imgui/master/imgui_widgets.cpp
+          curl -L -o imgui\imgui_tables.cpp https://raw.githubusercontent.com/ocornut/imgui/master/imgui_tables.cpp
+          curl -L -o imgui\imgui_internal.h https://raw.githubusercontent.com/ocornut/imgui/master/imgui_internal.h
+          curl -L -o imgui\imstb_rectpack.h https://raw.githubusercontent.com/ocornut/imgui/master/imstb_rectpack.h
+          curl -L -o imgui\imstb_textedit.h https://raw.githubusercontent.com/ocornut/imgui/master/imstb_textedit.h
+          curl -L -o imgui\imstb_truetype.h https://raw.githubusercontent.com/ocornut/imgui/master/imstb_truetype.h
+          curl -L -o imgui\imgui_impl_win32.h https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_win32.h
+          curl -L -o imgui\imgui_impl_win32.cpp https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_win32.cpp
+          curl -L -o imgui\imgui_impl_dx11.h https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_dx11.h
+          curl -L -o imgui\imgui_impl_dx11.cpp https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_dx11.cpp
+          echo #pragma once > imgui\imconfig.h
+          for /f "tokens=*" %%i in ('"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath') do set VS=%%i
+          call "%VS%\VC\Auxiliary\Build\vcvars64.bat"
+          cl /EHsc /O2 /MT /GS- /Fe:ZekaxxCCheat.exe ZekaxxCCheat.cpp imgui\*.cpp /I imgui /link /SUBSYSTEM:WINDOWS /MACHINE:X64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ZekaxxCCheat
+          path: ZekaxxCCheat.exe
