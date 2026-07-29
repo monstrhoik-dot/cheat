@@ -29,11 +29,6 @@ jobs:
           curl -L -o imgui\imgui_impl_dx11.cpp https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_dx11.cpp
           echo #pragma once > imgui\imconfig.h
 
-      - name: Check main source file
-        shell: cmd
-        run: |
-          if exist ZekaxxCCheat.cpp (echo [OK] ZekaxxCCheat.cpp found) else (echo [ERROR] ZekaxxCCheat.cpp NOT FOUND & exit 1)
-
       - name: Find Visual Studio
         shell: pwsh
         run: |
