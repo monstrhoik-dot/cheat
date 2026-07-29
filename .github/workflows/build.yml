@@ -11,7 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download ImGui
+      - name: Download ImGui (all files)
         shell: cmd
         run: |
           mkdir imgui
@@ -21,11 +21,18 @@ jobs:
           curl -L -o imgui\imgui_widgets.cpp https://raw.githubusercontent.com/ocornut/imgui/master/imgui_widgets.cpp
           curl -L -o imgui\imgui_tables.cpp https://raw.githubusercontent.com/ocornut/imgui/master/imgui_tables.cpp
           curl -L -o imgui\imgui_internal.h https://raw.githubusercontent.com/ocornut/imgui/master/imgui_internal.h
+          curl -L -o imgui\imstb_rectpack.h https://raw.githubusercontent.com/ocornut/imgui/master/imstb_rectpack.h
+          curl -L -o imgui\imstb_textedit.h https://raw.githubusercontent.com/ocornut/imgui/master/imstb_textedit.h
           curl -L -o imgui\imgui_impl_win32.h https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_win32.h
           curl -L -o imgui\imgui_impl_win32.cpp https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_win32.cpp
           curl -L -o imgui\imgui_impl_dx11.h https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_dx11.h
           curl -L -o imgui\imgui_impl_dx11.cpp https://raw.githubusercontent.com/ocornut/imgui/master/backends/imgui_impl_dx11.cpp
           echo #pragma once > imgui\imconfig.h
+
+      - name: Check main source file
+        shell: cmd
+        run: |
+          if exist ZekaxxCCheat.cpp (echo [OK] ZekaxxCCheat.cpp found) else (echo [ERROR] ZekaxxCCheat.cpp NOT FOUND & exit 1)
 
       - name: Find Visual Studio
         shell: pwsh
